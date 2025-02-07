@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mr_stripe"
+version = "1.0.0"
+description = "Stripe payments for MindRoot"
+requires-python = ">=3.7"
+dependencies = ["stripe"]
+
