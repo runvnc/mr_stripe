@@ -5,6 +5,7 @@ from lib.logging.logfiles import logger
 from typing import Optional, Dict, Any, Union
 from decimal import Decimal
 from dataclasses import dataclass
+from datetime import datetime
 
 @dataclass
 class CheckoutUrls:
@@ -85,6 +86,34 @@ async def subscription_checkout(
     )
     return session.url
 
+@service()
+async def cancel_stripe_subscription(
+    provider_subscription_id: str,
+    at_period_end: bool = True
+) -> bool:
+    """Cancel a Stripe subscription
+    
+    Args:
+        provider_subscription_id: Stripe subscription ID
+        at_period_end: Whether to cancel at period end or immediately
+        
+    Returns:
+        bool: Success status
+    """
+    try:
+        # Cancel subscription
+        stripe.Subscription.modify(
+            provider_subscription_id,
+            cancel_at_period_end=at_period_end
+        )
+        
+        logger.info(f"Cancelled Stripe subscription {provider_subscription_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to cancel Stripe subscription: {str(e)}")
+        raise
+
 async def process_payment(event: dict):
     """Handle completed Stripe payments and subscription events"""
     event_type = event['type']
@@ -104,22 +133,72 @@ async def process_payment(event: dict):
                 )
                     
             elif session['mode'] == 'subscription':
-                # Handle new subscription
-                await service_manager.activate_subscription(
-                    user_id=session['client_reference_id'],
-                    subscription_id=session['subscription'],
-                    plan_id=session['metadata'].get('plan_id'),
-                    source='stripe'
-                )
+                # For subscriptions, we'll handle this in the webhook handler
+                # to forward to the subscriptions plugin
+                pass
                 
         elif event_type == 'customer.subscription.deleted':
-            # Handle subscription cancellation
-            await service_manager.deactivate_subscription(
-                user_id=session['client_reference_id'],
-                subscription_id=session['id'],
-                source='stripe'
-            )
+            # For subscriptions, we'll handle this in the webhook handler
+            # to forward to the subscriptions plugin
+            pass
 
     except Exception as e:
         logger.error(f"Payment processing failed: {str(e)}")
         raise
+
+async def normalize_subscription_event(event: dict) -> dict:
+    """Convert Stripe event to normalized subscription event format"""
+    event_type = event['type']
+    normalized = {
+        'original_type': event_type,
+        'provider': 'stripe',
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    if event_type == 'checkout.session.completed':
+        session = event['data']['object']
+        if session.get('mode') == 'subscription':
+            normalized.update({
+                'event_type': 'subscription_created',
+                'username': session.get('client_reference_id'),
+                'subscription_id': session.get('subscription'),
+                'metadata': session.get('metadata', {})
+            })
+    
+    elif event_type == 'invoice.paid':
+        invoice = event['data']['object']
+        subscription_id = invoice.get('subscription')
+        normalized.update({
+            'event_type': 'subscription_renewed',
+            'subscription_id': subscription_id,
+            'invoice_id': invoice.get('id')
+        })
+        
+        # Get additional subscription details from Stripe
+        try:
+            stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+            normalized.update({
+                'period_start': datetime.fromtimestamp(stripe_subscription.current_period_start).isoformat(),
+                'period_end': datetime.fromtimestamp(stripe_subscription.current_period_end).isoformat()
+            })
+        except Exception as e:
+            logger.error(f"Error getting subscription details: {e}")
+    
+    elif event_type == 'customer.subscription.updated':
+        subscription = event['data']['object']
+        normalized.update({
+            'event_type': 'subscription_updated',
+            'subscription_id': subscription.get('id'),
+            'status': subscription.get('status'),
+            'cancel_at_period_end': subscription.get('cancel_at_period_end', False),
+            'current_period_end': datetime.fromtimestamp(subscription.get('current_period_end')).isoformat()
+        })
+    
+    elif event_type == 'customer.subscription.deleted':
+        subscription = event['data']['object']
+        normalized.update({
+            'event_type': 'subscription_canceled',
+            'subscription_id': subscription.get('id')
+        })
+    
+    return normalized

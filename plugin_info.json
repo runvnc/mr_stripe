@@ -1,8 +1,12 @@
 {
   "name": "Stripe Payments",
   "version": "1.0.0",
-  "description": "Credit purchase integration with Stripe",
-  "services": [],
+  "description": "Credit purchase and subscription integration with Stripe",
+  "services": [
+    "product_checkout",
+    "subscription_checkout",
+    "cancel_stripe_subscription"
+  ],
   "commands": ["create_stripe_session"],
   "config_schema": {
     "stripe_api_key": {"type": "string", "secret": true},
