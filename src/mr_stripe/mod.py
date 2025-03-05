@@ -19,7 +19,8 @@ async def product_checkout(
     currency: str = 'USD',
     quantity: int = 1,
     urls: Optional[CheckoutUrls] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    context=None
 ) -> str:
     """Create Stripe Checkout Session for one-time product purchase"""
     success_url = urls.success if urls else f'/stripe/success?session_id={{CHECKOUT_SESSION_ID}}'
@@ -53,7 +54,8 @@ async def subscription_checkout(
     interval: str,  # 'month' or 'year'
     currency: str = 'USD',
     urls: Optional[CheckoutUrls] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    context=None
 ) -> str:
     """Create Stripe Checkout Session for subscription signup"""
     if interval not in ['month', 'year']:
