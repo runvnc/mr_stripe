@@ -23,7 +23,7 @@ class SubscriptionCheckoutRequest(BaseModel):
     metadata: Optional[dict] = None
 
 router = APIRouter()
-stripe.api_key = os.getenv("STRIPE_API_KEY")
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 @router.post("/stripe/webhook")
 async def handle_webhook(request: Request):
