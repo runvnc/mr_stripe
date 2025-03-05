@@ -5,6 +5,9 @@ from typing import Optional, Dict, Any, Union
 from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime
+import os
+
+BASE_URL = os.environ.get("MR_BASE_URL", "http://localhost:8012/")
 
 @dataclass
 class CheckoutUrls:
@@ -61,8 +64,8 @@ async def subscription_checkout(
     if interval not in ['month', 'year']:
         raise ValueError("interval must be 'month' or 'year'")
         
-    success_url = urls.success if urls else f'/stripe/success?session_id={{CHECKOUT_SESSION_ID}}'
-    cancel_url = urls.cancel if urls else '/stripe/cancel'
+    success_url = urls.success if urls else f'{BASE_URL}/stripe/success?session_id={{CHECKOUT_SESSION_ID}}'
+    cancel_url = urls.cancel if urls else f'{BASE_URL}/stripe/cancel'
     
     line_items = [{
         'price_data': {
