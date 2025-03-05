@@ -1,6 +1,5 @@
 import stripe
-from lib.providers import service
-from lib.providers.services import service_manager
+from lib.providers.services import service, service_manager
 from lib.logging.logfiles import logger
 from typing import Optional, Dict, Any, Union
 from decimal import Decimal
