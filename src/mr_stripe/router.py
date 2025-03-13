@@ -4,6 +4,7 @@ import stripe
 import os
 from decimal import Decimal
 from typing import Optional
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from lib.providers.services import service_manager
 from loguru import logger
@@ -102,3 +103,31 @@ async def handle_subscription_checkout(request: Request, checkout_data: Subscrip
     except Exception as e:
         logger.error(f"Error creating subscription checkout: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/stripe/success")
+async def handle_checkout_success(request: Request, session_id: str):
+    """Handle successful checkout redirect from Stripe"""
+    try:
+        # Retrieve session details from Stripe
+        session = stripe.checkout.Session.retrieve(session_id)
+        
+        # Log the successful checkout
+        logger.info(f"Successful Stripe checkout: {session_id} (mode: {session.mode})")
+        
+        # If this is a subscription checkout
+        if session.mode == 'subscription':
+            # Redirect to the subscriptions page
+            return RedirectResponse(url="/subscriptions/page")
+        else:
+            # For product checkouts
+            return RedirectResponse(url="/credits/page")
+    except Exception as e:
+        logger.error(f"Error handling checkout success: {e}")
+        # Redirect to home in case of error
+        return RedirectResponse(url="/")
+
+@router.get("/stripe/cancel")
+async def handle_checkout_cancel(request: Request):
+    """Handle cancelled checkout from Stripe"""
+    logger.info("Checkout cancelled by user")
+    return RedirectResponse(url="/subscriptions/page?canceled=true")
