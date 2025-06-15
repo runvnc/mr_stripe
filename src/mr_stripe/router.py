@@ -8,6 +8,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from lib.providers.services import service_manager
 from loguru import logger
+from lib.route_decorators import public_route, public_routes
 
 class ProductCheckoutRequest(BaseModel):
     amount: Decimal
@@ -26,7 +27,18 @@ class SubscriptionCheckoutRequest(BaseModel):
 router = APIRouter()
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
+# change to blue background yellow text
+print("\033[44;33m")
+print("-------------------------- Loaded router.py in mr_stripe ------------------------------------ ")
+print("Current public routes:")
+print(public_routes)
+# switch to norml text
+print("\033[0m")
+
+
+
 @router.post("/stripe/webhook")
+@public_route()
 async def handle_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get('stripe-signature')

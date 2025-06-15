@@ -6,6 +6,8 @@ from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime
 import os
+import sys
+import time
 
 BASE_URL = os.environ.get("MR_BASE_URL", "http://localhost:8012/")
 
@@ -206,3 +208,10 @@ async def normalize_subscription_event(event: dict) -> dict:
         })
     
     return normalized
+
+
+print("Finished loading Stripe mod.py")
+
+time.sleep(10)
+
+print("Continuing..")
