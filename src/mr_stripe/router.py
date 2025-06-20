@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
-from .mod import process_payment, product_checkout, subscription_checkout, normalize_subscription_event
+from .mod import process_single_payment, product_checkout, subscription_checkout, normalize_subscription_event
 import stripe
 import os
 from decimal import Decimal
@@ -54,27 +54,30 @@ async def handle_webhook(request: Request):
         event_type = event['type']
         logger.info(f"Processing Stripe webhook event: {event_type}")
         
-        # Process regular payment events
-        await process_payment(event)
+        # Try to process as a one-time payment first
+        was_processed = await process_single_payment(event)
         
-        # For subscription-related events, normalize and forward to subscription plugin
-        if event_type in ['checkout.session.completed', 'invoice.paid', 
-                         'customer.subscription.updated', 'customer.subscription.deleted']:
+        # If it wasn't a one-time payment, check if it's a subscription event
+        if not was_processed and event_type in [
+            'checkout.session.completed', 'invoice.paid', 
+            'customer.subscription.updated', 'customer.subscription.deleted'
+        ]:
             
             # Normalize the event to subscription format
             normalized_event = await normalize_subscription_event(event)
             
             # Forward to subscription plugin's event handler
-            try:
-                result = await service_manager.process_subscription_event({
-                    'provider': 'stripe',
-                    'normalized_event': normalized_event,
-                    'original_event': event
-                })
-                logger.info(f"Subscription event processed: {result}")
-            except Exception as e:
-                logger.error(f"Error forwarding to subscription plugin: {e}")
-                # Continue processing - don't fail the webhook
+            if normalized_event.get('event_type'): # Ensure it's a valid normalized event
+                try:
+                    result = await service_manager.process_subscription_event({
+                        'provider': 'stripe',
+                        'normalized_event': normalized_event,
+                        'original_event': event
+                    })
+                    logger.info(f"Subscription event processed: {result}")
+                except Exception as e:
+                    logger.error(f"Error forwarding to subscription plugin: {e}")
+                    # Continue processing - don't fail the webhook
         
         return {"status": "success"}
     except Exception as e:
@@ -128,8 +131,14 @@ async def handle_checkout_success(request: Request, session_id: str):
         
         # If this is a subscription checkout
         if session.mode == 'subscription':
-            # Redirect to the subscriptions page
-            return RedirectResponse(url="/subscriptions/page")
+            # Check if this is an mrhosting subscription
+            metadata = session.get('metadata', {})
+            if metadata.get('source') == 'mrhosting':
+                # Redirect to the hosting management page
+                return RedirectResponse(url="/app")
+            else:
+                # Redirect to the subscriptions page
+                return RedirectResponse(url="/subscriptions/page")
         else:
             # For product checkouts
             return RedirectResponse(url="/credits/page")

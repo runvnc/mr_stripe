@@ -120,36 +120,29 @@ async def cancel_stripe_subscription(
         logger.error(f"Failed to cancel Stripe subscription: {str(e)}")
         raise
 
-async def process_payment(event: dict):
-    """Handle completed Stripe payments and subscription events"""
+async def process_single_payment(event: dict) -> bool:
+    """Handle completed Stripe one-time payments. Returns True if processed."""
     event_type = event['type']
     session = event['data']['object']
 
     try:
-        if event_type == 'checkout.session.completed':
-            if session['mode'] == 'payment':
-                # Handle regular product purchase
-                await service_manager.process_purchase(
-                    user_id=session['client_reference_id'],
-                    transaction_id=session['id'],
-                    amount=session['amount_total'] / 100,
-                    currency=session['currency'],
-                    metadata=session['metadata'],
-                    source='stripe'
-                )
-                    
-            elif session['mode'] == 'subscription':
-                # For subscriptions, we'll handle this in the webhook handler
-                # to forward to the subscriptions plugin
-                pass
-                
-        elif event_type == 'customer.subscription.deleted':
-            # For subscriptions, we'll handle this in the webhook handler
-            # to forward to the subscriptions plugin
-            pass
+        if event_type == 'checkout.session.completed' and session.get('mode') == 'payment':
+            # Handle regular product purchase
+            await service_manager.process_purchase(
+                user_id=session['client_reference_id'],
+                transaction_id=session['id'],
+                amount=session['amount_total'] / 100,
+                currency=session['currency'],
+                metadata=session['metadata'],
+                source='stripe'
+            )
+            logger.info(f"Processed one-time payment: {session['id']}")
+            return True
+        
+        return False
 
     except Exception as e:
-        logger.error(f"Payment processing failed: {str(e)}")
+        logger.error(f"Single payment processing failed: {str(e)}")
         raise
 
 async def normalize_subscription_event(event: dict) -> dict:
@@ -212,6 +205,5 @@ async def normalize_subscription_event(event: dict) -> dict:
 
 print("Finished loading Stripe mod.py")
 
-time.sleep(10)
 
 print("Continuing..")
