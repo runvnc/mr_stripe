@@ -174,6 +174,7 @@ async def normalize_subscription_event(event: dict) -> dict:
         })
         
         # Get additional subscription details from Stripe
+        logger.info(f"stripe_subscription: {stripe_subscription}")
         try:
             stripe_subscription = stripe.Subscription.retrieve(subscription_id)
             normalized.update({
