@@ -5,7 +5,8 @@
   "services": [
     "product_checkout",
     "subscription_checkout",
-    "cancel_stripe_subscription"
+    "cancel_stripe_subscription",
+    "issue_stripe_refund"
   ],
   "commands": ["create_stripe_session"],
   "config_schema": {

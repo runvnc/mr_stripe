@@ -174,6 +174,89 @@ async def cancel_subscription_with_proration(
             "error": str(e)
         }
 
+@service()
+async def issue_stripe_refund(
+    provider_subscription_id: str,
+    refund_amount: Decimal,
+    reason: str = "requested_by_customer",
+    context=None
+) -> Dict[str, Any]:
+    """Issue a refund against the most recent payment for a subscription
+    
+    Args:
+        provider_subscription_id: Stripe subscription ID
+        refund_amount: Amount to refund in dollars
+        reason: Reason for the refund
+        
+    Returns:
+        Dict with success status and refund details
+    """
+    try:
+        logger.info(f"Processing refund of ${refund_amount:.2f} for subscription {provider_subscription_id}")
+        
+        # Get subscription to find the most recent invoice
+        subscription = stripe.Subscription.retrieve(provider_subscription_id)
+        logger.info(f"Retrieved subscription, status: {subscription.status}")
+        
+        if not subscription.latest_invoice:
+            logger.error(f"No latest invoice found for subscription {provider_subscription_id}")
+            return {
+                "success": False,
+                "error": "No invoice found for subscription"
+            }
+        
+        # Get the latest invoice
+        invoice = stripe.Invoice.retrieve(subscription.latest_invoice)
+        logger.info(f"Retrieved invoice {invoice.id}, amount: ${invoice.amount_paid / 100:.2f}")
+        
+        if not invoice.charge:
+            logger.error(f"No charge found for invoice {invoice.id}")
+            return {
+                "success": False,
+                "error": "No charge found for invoice"
+            }
+        
+        # Convert refund amount to cents
+        refund_amount_cents = int(refund_amount * 100)
+        
+        # Validate refund amount doesn't exceed charge amount
+        if refund_amount_cents > invoice.amount_paid:
+            logger.error(f"Refund amount ${refund_amount:.2f} exceeds invoice amount ${invoice.amount_paid / 100:.2f}")
+            return {
+                "success": False,
+                "error": f"Refund amount exceeds invoice amount"
+            }
+        
+        # Issue the refund
+        refund = stripe.Refund.create(
+            charge=invoice.charge,
+            amount=refund_amount_cents,
+            reason=reason,
+            metadata={
+                "subscription_id": provider_subscription_id,
+                "refund_type": "prorated_cancellation"
+            }
+        )
+        
+        logger.info(f"Refund {refund.id} created successfully for ${refund_amount:.2f}")
+        
+        return {
+            "success": True,
+            "refund_id": refund.id,
+            "refund_amount": refund_amount,
+            "charge_id": invoice.charge,
+            "invoice_id": invoice.id,
+            "status": refund.status,
+            "reason": reason
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to issue Stripe refund: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 async def process_single_payment(event: dict) -> bool:
     """Handle completed Stripe one-time payments. Returns True if processed."""
     event_type = event['type']
