@@ -123,7 +123,8 @@ async def cancel_stripe_subscription(
 @service()
 async def cancel_subscription_with_proration(
     provider_subscription_id: str,
-    reason: str = "requested_by_customer"
+    reason: str = "requested_by_customer",
+    context = None
 ) -> Dict[str, Any]:
     """Cancel subscription immediately with automatic Stripe proration
     
