@@ -109,9 +109,8 @@ async def cancel_stripe_subscription(
     """
     try:
         # Cancel subscription
-        stripe.Subscription.modify(
-            provider_subscription_id,
-            cancel_at_period_end=at_period_end
+        stripe.Subscription.cancel(
+            provider_subscription_id
         )
         
         logger.info(f"Cancelled Stripe subscription {provider_subscription_id}")
