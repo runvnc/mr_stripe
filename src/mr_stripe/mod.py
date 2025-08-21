@@ -120,6 +120,60 @@ async def cancel_stripe_subscription(
         logger.error(f"Failed to cancel Stripe subscription: {str(e)}")
         raise
 
+@service()
+async def cancel_subscription_with_proration(
+    provider_subscription_id: str,
+    reason: str = "requested_by_customer"
+) -> Dict[str, Any]:
+    """Cancel subscription immediately with automatic Stripe proration
+    
+    Args:
+        provider_subscription_id: Stripe subscription ID
+        reason: Reason for cancellation
+        
+    Returns:
+        Dict with success status, refund amount, and details
+    """
+    try:
+        logger.info(f"Cancelling subscription {provider_subscription_id} with proration")
+        
+        # Cancel subscription immediately with proration
+        subscription = stripe.Subscription.modify(
+            provider_subscription_id,
+            cancel_at_period_end=False,  # Cancel immediately
+            prorate=True,               # Create proration credits
+            invoice_now=True            # Generate invoice immediately
+        )
+        
+        logger.info(f"Subscription {provider_subscription_id} cancelled, status: {subscription.status}")
+        
+        # Get the final invoice to see proration amount
+        final_invoice = None
+        refund_amount = 0
+        
+        if subscription.latest_invoice:
+            final_invoice = stripe.Invoice.retrieve(subscription.latest_invoice)
+            # Negative total means customer gets credit/refund
+            if final_invoice.total < 0:
+                refund_amount = abs(final_invoice.total) / 100  # Convert from cents
+                logger.info(f"Proration credit of ${refund_amount:.2f} created")
+        
+        return {
+            "success": True,
+            "subscription_id": provider_subscription_id,
+            "status": subscription.status,
+            "refund_amount": refund_amount,
+            "final_invoice_id": final_invoice.id if final_invoice else None,
+            "reason": reason
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to cancel subscription with proration: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 async def process_single_payment(event: dict) -> bool:
     """Handle completed Stripe one-time payments. Returns True if processed."""
     event_type = event['type']
