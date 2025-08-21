@@ -139,9 +139,8 @@ async def cancel_subscription_with_proration(
         logger.info(f"Cancelling subscription {provider_subscription_id} with proration")
         
         # Cancel subscription immediately with proration
-        subscription = stripe.Subscription.modify(
+        subscription = stripe.Subscription.cancel(
             provider_subscription_id,
-            cancel_at_period_end=False,  # Cancel immediately
             prorate=True,               # Create proration credits
             invoice_now=True            # Generate invoice immediately
         )
