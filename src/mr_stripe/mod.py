@@ -95,7 +95,8 @@ async def subscription_checkout(
 @service()
 async def cancel_stripe_subscription(
     provider_subscription_id: str,
-    at_period_end: bool = True
+    at_period_end: bool = True,
+    context=None
 ) -> bool:
     """Cancel a Stripe subscription
     
