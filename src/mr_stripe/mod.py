@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, Union
 from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime
+import traceback
 import os
 import sys
 import time
@@ -204,12 +205,17 @@ async def issue_stripe_refund(
                 "success": False,
                 "error": "No invoice found for subscription"
             }
-        
+
+        invs = stripe.Invoice.list(subscription=provider_subscription_id, status="paid", limit=1)
+            if not invs.data:
+                raise RuntimeError("No paid invoices found for this subscription.")
+        pi_id = invs.data[0].payment_intent  # string id
+
         # Get the latest invoice
         invoice = stripe.Invoice.retrieve(subscription.latest_invoice)
         logger.info(f"Retrieved invoice {invoice.id}, amount: ${invoice.amount_paid / 100:.2f}")
         
-        if not invoice.charge:
+        if not invoice.total_excluding_tax:
             logger.error(f"No charge found for invoice {invoice.id}")
             return {
                 "success": False,
@@ -227,30 +233,28 @@ async def issue_stripe_refund(
                 "error": f"Refund amount exceeds invoice amount"
             }
         
-        # Issue the refund
         refund = stripe.Refund.create(
-            charge=invoice.charge,
+            payment_intent=pi_id,
             amount=refund_amount_cents,
-            reason=reason,
             metadata={
-                "subscription_id": provider_subscription_id,
-                "refund_type": "prorated_cancellation"
+              "description": "VM deleted; unused days minus fees"
             }
         )
-        
+       
         logger.info(f"Refund {refund.id} created successfully for ${refund_amount:.2f}")
         
         return {
             "success": True,
             "refund_id": refund.id,
             "refund_amount": refund_amount,
-            "charge_id": invoice.charge,
+            "payment_intent": pi_id,
             "invoice_id": invoice.id,
             "status": refund.status,
             "reason": reason
         }
         
     except Exception as e:
+        trace = traceback.format_exc()
         logger.error(f"Failed to issue Stripe refund: {str(e)}")
         return {
             "success": False,
