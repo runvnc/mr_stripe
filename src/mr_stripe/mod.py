@@ -207,7 +207,7 @@ async def issue_stripe_refund(
             }
 
         invs = stripe.Invoice.list(subscription=provider_subscription_id, status="paid", limit=1)
-            if not invs.data:
+        if not invs.data:
                 raise RuntimeError("No paid invoices found for this subscription.")
         pi_id = invs.data[0].payment_intent  # string id
 
