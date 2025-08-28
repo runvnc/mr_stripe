@@ -41,10 +41,16 @@ async def product_checkout(
         'quantity': quantity
     }]
     
+    # TODO: Require shipping address collection
+    #
     session = stripe.checkout.Session.create(
         payment_method_types=['card'],
         line_items=line_items,
         mode='payment',
+        allow_promotion_codes=True,
+        shipping_address_collection={
+                'allowed_countries': ['US', 'CA', 'GB', 'MX']  # Add more countries as needed
+        },
         success_url=success_url,
         cancel_url=cancel_url,
         client_reference_id=user_id,
@@ -209,7 +215,7 @@ async def issue_stripe_refund(
         invs = stripe.Invoice.list(subscription=provider_subscription_id, status="paid", limit=1)
         if not invs.data:
                 raise RuntimeError("No paid invoices found for this subscription.")
-        pi_id = invs.data[0].payment_intent  # string id
+        pi_id = invs.data[0].payments.data[0].payment.payment_intent  # string id
 
         # Get the latest invoice
         invoice = stripe.Invoice.retrieve(subscription.latest_invoice)
@@ -255,7 +261,7 @@ async def issue_stripe_refund(
         
     except Exception as e:
         trace = traceback.format_exc()
-        logger.error(f"Failed to issue Stripe refund: {str(e)}")
+        logger.error(f"Failed to issue Stripe refund: {str(e)}\n\n{trace}")
         return {
             "success": False,
             "error": str(e)
