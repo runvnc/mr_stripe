@@ -94,6 +94,7 @@ async def subscription_checkout(
         mode='subscription',
         success_url=success_url,
         cancel_url=cancel_url,
+        allow_promotion_codes=True,
         client_reference_id=user_id,
         metadata=metadata or {}
     )
